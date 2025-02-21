@@ -1,0 +1,89 @@
+#!/bin/bash
+
+#Compilation of commands for pre-modelling steps RaptorX 
+#All tools are associated with RaptorX http://raptorx.uchicago.edu/download/bGluYS5yb3phbm9AcG9zdGdyYWQuY3VydGluLmVkdS5hdQ==/
+
+#1. Secondary structure prediction using DeepCNF_SS
+cd /RaptorX/SecondaryStructurePred/DeepCNF_SS_v1.02_release
+./DeepCNF_SS.sh -i 2mm0.fasta #took 14 minutes to complete using 1 core for 65aa protein sequence
+
+#Output= 2mm0.ss3 (3-state prediction), 2mm0.ss8 (8-state prediction)
+
+#2. Disordered prediction using AUCpreD- DONE
+#BuildFeature= generate sequence profile to be used in disordered prediction and threading (format .TGT)
+cd /RaptorX/DisorderedPred/AUCpreD_v1.03_release
+./buildFeature -i 2mm0.fasta -o 2mm0.tgt 	 #input in fasta file and also output TGT,  10mins 65aa seq on 1core.
+./buildFeature -i 2mm0.fasta -c 4 -o 2mm0.tgt #if using 4 cores
+
+#Then run AUCpredD= predict disordered
+./AUCpreD.sh -i example/2mm0.fasta -o 2mm0.diso_noprof #if wanna run only disordered without using sequence profile .TGT format, quick.
+
+./AUCpreD.sh -i example/2mm0.fasta -m 0 -c 8 -o 2mm0.diso_profile 
+(or)
+./AUCpreD.sh -i example/2mm0.tgt -o 2mm0.diso_profile #with sequence profile .TGT format, quick.
+
+#Output= 2mm0.tgt (sequence profile), run.log, 2mm0.diso_noprof (disordered prediction without using profile .tgt), 2mm0.diso_profile (disordered prediction using profile .tgt)
+
+#3. Pre-Threading&Modelling- setting up databases
+#REQUIRED DATABASES for CNFpred
+#ALWAYS CHECK FOR LATEST UPDATE BEFORE RUNNING (obtained from RaptorX downloads): 
+
+#a) template and NR databases: (For threading)
+#database/TPL_BC100/contains entries for TPL_BC40 and TPL_Remain plus TemplateList 
+#database NR_new (will have new release of nr90 and nr70)
+cd database
+mkdir TPL_BC100
+
+wget http://raptorx.uchicago.edu/download/bGluYS5yb3phbm9AcG9zdGdyYWQuY3VydGluLmVkdS5hdQ==/44/TPL_BC40_20191031.tar.gz
+wget http://raptorx.uchicago.edu/download/bGluYS5yb3phbm9AcG9zdGdyYWQuY3VydGluLmVkdS5hdQ==/45/TPL_Remain_20191031.tar.gz
+wget http://raptorx.uchicago.edu/download/bGluYS5yb3phbm9AcG9zdGdyYWQuY3VydGluLmVkdS5hdQ==/46/TemplateLists_20191031.tar.gz
+
+tar -zxvf TPL_BC40_*.tar.gz	#.tpl format
+tar -zxvf TPL_Remain_*.tar.gz #.tpl format
+#mv all .tpl to /database/TPL_BC100 
+tar -zxvf TemplateLists_*.tar.gz #extract in /database/. contains bc**map and *list
+
+#b) PDB databases: (For modelling)
+#database/pdb_BC100/contains entry for pdb_BC40 and pdb_Remain #extras TemplateList
+cd database
+mkdir pdb_BC100
+
+wget http://raptorx.uchicago.edu/download/bGluYS5yb3phbm9AcG9zdGdyYWQuY3VydGluLmVkdS5hdQ==/52/pdb_BC40_20191031.tar.gz
+wget http://raptorx.uchicago.edu/download/bGluYS5yb3phbm9AcG9zdGdyYWQuY3VydGluLmVkdS5hdQ==/53/pdb_Remain_20191031.tar.gz
+
+tar -zxvf pdb_BC40_*.tar.gz
+tar -zxvf pdb_Remain_*.tar.gz
+
+#4. Threading
+#can use .TGT format from the previous runs generated from buildFeature, if not have to generate at this step
+#copy .tgt file into TGT folder
+cp *.tgt TGT
+
+#a) Start with CNFsearch= search similar template in a database for a query protein sequence
+cd /RaptorX/CNFsearch1.66_complete
+
+./CNFsearch -a NP -q query_name [-l template_list] [-d tpl_root] [-g tgt_root] [-o output_file] [-n topN] [-p pval]
+#or using mpi
+mpirun -np NP ./CNFsearch_mpi -q query_name [-l template_list] [-d tpl_root] [-g tgt_root] [-o output_file] [-n topN] [-p pval]
+
+./CNFsearch -a 4 -q 2mm0 > run.log #tested using 4 cores for 65aa seq, takes ~15mins
+
+#Output= 2mm0.rank (ranking of threading based on pvalue-the best will be used for modelling)
+#in /RaptorX/CNFsearch1.66_complete/tmp/2mm0/FASTA 
+# template*_2mm0.fasta (fasta seq of template n target)
+# tempalte*.2mm0.cnfpred (the aligned regions of all target vs template + ss pred + disordered pred scores)
+
+#a) Pairwise alignment using CNFalign (there are 3 modes)
+#CNFalign_lite is 5-6 times faster than CNFalign_fast, which in turn is 30% faster than CNFalign_normal.
+#However, CNFalign_lite is 2% worse than the other two in terms of accuracy. For example, on all the CASP10 targets, CNFalign_lite obtains accumulative TMscore 74.1 while CNFalign_fast 75.5.
+
+./CNFalign_lite -t template_name -q target_name [-l tpl_root] [-g tgt_root] [-d output_root]
+./CNFalign_fast -t template_name -q target_name [-l tpl_root] [-g tgt_root] [-d output_root]
+./CNFalign_normal -t template_name -q target_name [-l tpl_root] [-g tgt_root] [-d output_root]
+
+./CNFalign_lite -q 2mm0 -t 2mm2A -d result/ #quick
+
+# in /RaptorX/CNFsearch1.66_complete/results
+#output= 2mm2A 2mm0 50.570558 65 64 64. FIles: .cnfpred .fasta 
+#output= 5cyaA 2mm0 20.942674 268 64 41 also contains rslt for second rank template
+

@@ -1,0 +1,47 @@
+#Docker
+#Lrlrlr 160419 dockerinfo
+#information on creating docker image, push to dockerhub, pull to pawsey using shifter, run docker on magnus
+
+#available on dockerhub
+FROM ubuntu:12.04
+
+# install necessary dependencies
+RUN apt-get update && \
+    apt-get install -y wget gfortran
+
+WORKDIR /opt
+RUN mkdir TMalign
+WORKDIR /opt/TMalign
+RUN wget --no-check-certificate https://zhanglab.ccmb.med.umich.edu/TM-align/TMalign.f
+RUN gfortran -static -O3 -ffast-math -lm -o TMalign TMalign.f
+RUN rm TMalign.f
+
+COPY wrapper.sh /opt/TMalign
+
+RUN mkdir /data
+WORKDIR /data
+
+ENTRYPOINT ["sh", "/opt/TMalign/wrapper.sh"]
+
+
+
+docker pull edraizen/tmalign
+
+
+##Running docker file on magnus
+module load shifter/18.06.00
+
+#pull the docker file using sg command (import docker image)
+sg $PAWSEY_PROJECT -c 'shifter pull my_repo/image:tag'
+
+sg $PAWSEY_PROJECT -c 'shifter pull edraizen/tmalign'
+
+#check images in group account
+shifter images
+
+#to remove any docker images in your group directory
+shifter rmi edraizen/tmalign
+
+#run job in the directory of shifter group/pawsey0001/bskjerven
+shifter run ubuntu:latest ls /scratch/$PAWSEY_PROJECT/$USER
+shifter run edraizen/tmalign ls /scratch/$PAWSEY_PROJECT/$USER

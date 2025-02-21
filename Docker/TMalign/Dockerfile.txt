@@ -1,0 +1,50 @@
+#base image
+FROM ubuntu:14.04
+
+#installing dependencies
+RUN apt-get -y update && \
+	apt-get -y install gfortran
+
+RUN apt-get -y update && \
+        apt-get -y install gfortran
+		
+		
+#base image
+FROM ubuntu:14.04
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+     curl \
+	 gfortran 
+
+--------------------------working version
+#base image
+FROM ubuntu:14.04
+	 
+RUN apt-get update
+RUN apt-get install -y gfortran
+RUN apt-get install -y wget
+
+#set working directory
+WORKDIR /app
+COPY . /app
+
+#get TMalign tool and install
+RUN wget https://zhanglab.ccmb.med.umich.edu/TM-align/TMalign.f
+RUN gfortran -static -O3 -ffast-math -lm -o TMalign TMalign.f
+
+
+-------------------------------
+docker run -ti -v /tmp:/tmp lrozano/tmalign /bin/bash
+docker run --rm -i -t -v $(pwd):/tmalign lrozano/tmalign:latest TMalign 2mm0.pdb template.pdb -o TM.sup -m matrix.txt > models_template.log
+
+
+gfortran -o hello_world /source/hello_world.f
+TMalign 2mm0.pdb template.pdb -o TM.sup -m matrix.txt > models_template.log
+
+
+#run the application
+#CMD ["TMalign", "./TMalign"]
+
+RUN apt-get update && apt-get -y upgrade && apt-get install -y gfortran
+RUN apt-get update && apt-get install --yes --fix-missing gfortran

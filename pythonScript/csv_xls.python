@@ -1,0 +1,22 @@
+# -*- coding:utf-8 -*-
+"""
+Lrlrlr 030519 csv_xls.python
+python script to combine multiple csv files into one excel files in different worksheets
+"""
+
+#change /mydir to desired working directory
+import os
+import glob
+import pandas as pd
+#set working directory- containing csv files
+os.chdir("/home/mobaxterm/Desktop/magnuswork")
+
+#match the pattern csv using glob and save the list of file names as 'all_filenames' variable
+extension = 'csv'
+all_filenames = [i for i in glob.glob('*.{}'.format(extension))]
+
+#combine all files in the list and export as csv using pandas
+combined_csv = pd.concat([pd.read_csv(f) for f in all_filenames ])
+
+#export to csv
+combined_csv.to_csv( "combined_csv.csv", index=False, encoding='utf-8-sig')
